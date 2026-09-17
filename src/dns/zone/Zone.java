@@ -28,4 +28,16 @@ public class Zone {
 
         return result;
     }
+
+    public boolean exists(String name) {
+
+        for (DnsRecord record : records) {
+
+            if (record.getName().equalsIgnoreCase(name)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
 }

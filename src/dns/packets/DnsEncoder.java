@@ -9,46 +9,113 @@ public class DnsEncoder {
 
     public static byte[] buildResponse(
             DnsPacket request,
-            List<DnsRecord> answers) throws IOException {
+            List<DnsRecord> answers,
+            int responseCode) throws IOException {
 
         ByteArrayOutputStream out =
                 new ByteArrayOutputStream();
 
-        DnsHeader requestHeader = request.getHeader();
+        DnsHeader requestHeader =
+                request.getHeader();
 
-        int flags = 0x8000 | 0x0400;
+        int flags =
+                0x8000
+                | 0x0400
+                | (responseCode & 0x0F);
 
-        writeShort(out, requestHeader.getId());
-        writeShort(out, flags);
-        writeShort(out, request.getQuestions().size());
-        writeShort(out, answers.size());
-        writeShort(out, 0);
-        writeShort(out, 0);
+        // Header
+        writeShort(
+                out,
+                requestHeader.getId()
+        );
 
-        for (DnsQuestion question : request.getQuestions()) {
+        writeShort(
+                out,
+                flags
+        );
 
-            writeName(out, question.getName());
+        writeShort(
+                out,
+                request.getQuestions().size()
+        );
 
-            writeShort(out, question.getType());
-            writeShort(out, question.getDnsClass());
+        writeShort(
+                out,
+                answers.size()
+        );
+
+        writeShort(
+                out,
+                0
+        );
+
+        writeShort(
+                out,
+                0
+        );
+
+        // Questions
+        for (DnsQuestion question :
+                request.getQuestions()) {
+
+            writeName(
+                    out,
+                    question.getName()
+            );
+
+            writeShort(
+                    out,
+                    question.getType()
+            );
+
+            writeShort(
+                    out,
+                    question.getDnsClass()
+            );
         }
 
+        // Answers
         for (DnsRecord record : answers) {
 
             if (record instanceof dns.records.ARecord aRecord) {
 
-                writeName(out, record.getName());
+                // Name
+                writeName(
+                        out,
+                        record.getName()
+                );
 
-                writeShort(out, 1);
-                writeShort(out, 1);
-                writeInt(out, record.getTtl());
+                // Type: A
+                writeShort(
+                        out,
+                        1
+                );
 
+                // Class: IN
+                writeShort(
+                        out,
+                        1
+                );
+
+                // TTL
+                writeInt(
+                        out,
+                        record.getTtl()
+                );
+
+                // IPv4 address
                 byte[] address =
                         InetAddress.getByName(
                                 aRecord.getAddress()
                         ).getAddress();
 
-                writeShort(out, address.length);
+                // RDATA length
+                writeShort(
+                        out,
+                        address.length
+                );
+
+                // RDATA
                 out.write(address);
             }
         }
@@ -60,11 +127,14 @@ public class DnsEncoder {
             ByteArrayOutputStream out,
             String name) {
 
-        String[] labels = name.split("\\.");
+        String[] labels =
+                name.split("\\.");
 
         for (String label : labels) {
 
-            out.write(label.length());
+            out.write(
+                    label.length()
+            );
 
             byte[] bytes =
                     label.getBytes();
@@ -79,17 +149,33 @@ public class DnsEncoder {
             ByteArrayOutputStream out,
             int value) {
 
-        out.write((value >> 8) & 0xFF);
-        out.write(value & 0xFF);
+        out.write(
+                (value >> 8) & 0xFF
+        );
+
+        out.write(
+                value & 0xFF
+        );
     }
 
     private static void writeInt(
             ByteArrayOutputStream out,
             int value) {
 
-        out.write((value >> 24) & 0xFF);
-        out.write((value >> 16) & 0xFF);
-        out.write((value >> 8) & 0xFF);
-        out.write(value & 0xFF);
+        out.write(
+                (value >> 24) & 0xFF
+        );
+
+        out.write(
+                (value >> 16) & 0xFF
+        );
+
+        out.write(
+                (value >> 8) & 0xFF
+        );
+
+        out.write(
+                value & 0xFF
+        );
     }
 }
