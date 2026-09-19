@@ -1,8 +1,16 @@
 package dns.packets;
 
+import dns.records.AAAARecord;
+import dns.records.ARecord;
+import dns.records.CnameRecord;
+import dns.records.MxRecord;
+import dns.records.NsRecord;
+import dns.records.TxtRecord;
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.InetAddress;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 public class DnsEncoder {
@@ -23,7 +31,10 @@ public class DnsEncoder {
                 | 0x0400
                 | (responseCode & 0x0F);
 
-        // Header
+        // =========================
+        // HEADER
+        // =========================
+
         writeShort(
                 out,
                 requestHeader.getId()
@@ -44,17 +55,13 @@ public class DnsEncoder {
                 answers.size()
         );
 
-        writeShort(
-                out,
-                0
-        );
+        writeShort(out, 0);
+        writeShort(out, 0);
 
-        writeShort(
-                out,
-                0
-        );
+        // =========================
+        // QUESTIONS
+        // =========================
 
-        // Questions
         for (DnsQuestion question :
                 request.getQuestions()) {
 
@@ -74,61 +81,264 @@ public class DnsEncoder {
             );
         }
 
-        // Answers
+        // =========================
+        // ANSWERS
+        // =========================
+
         for (DnsRecord record : answers) {
 
-            if (record instanceof dns.records.ARecord aRecord) {
+            // =====================
+            // A
+            // =====================
 
-                // Name
+            if (record instanceof ARecord aRecord) {
+
                 writeName(
                         out,
                         record.getName()
                 );
 
-                // Type: A
-                writeShort(
-                        out,
-                        1
-                );
+                writeShort(out, 1);
+                writeShort(out, 1);
 
-                // Class: IN
-                writeShort(
-                        out,
-                        1
-                );
-
-                // TTL
                 writeInt(
                         out,
                         record.getTtl()
                 );
 
-                // IPv4 address
                 byte[] address =
                         InetAddress.getByName(
                                 aRecord.getAddress()
                         ).getAddress();
 
-                // RDATA length
                 writeShort(
                         out,
                         address.length
                 );
 
-                // RDATA
                 out.write(address);
+            }
+
+            // =====================
+            // AAAA
+            // =====================
+
+            else if (record instanceof AAAARecord aaaaRecord) {
+
+                writeName(
+                        out,
+                        record.getName()
+                );
+
+                writeShort(out, 28);
+                writeShort(out, 1);
+
+                writeInt(
+                        out,
+                        record.getTtl()
+                );
+
+                byte[] address =
+                        InetAddress.getByName(
+                                aaaaRecord.getAddress()
+                        ).getAddress();
+
+                writeShort(
+                        out,
+                        address.length
+                );
+
+                out.write(address);
+            }
+
+            // =====================
+            // CNAME
+            // =====================
+
+            else if (record instanceof CnameRecord cnameRecord) {
+
+                writeName(
+                        out,
+                        record.getName()
+                );
+
+                writeShort(out, 5);
+                writeShort(out, 1);
+
+                writeInt(
+                        out,
+                        record.getTtl()
+                );
+
+                ByteArrayOutputStream targetOut =
+                        new ByteArrayOutputStream();
+
+                writeName(
+                        targetOut,
+                        cnameRecord.getTarget()
+                );
+
+                byte[] target =
+                        targetOut.toByteArray();
+
+                writeShort(
+                        out,
+                        target.length
+                );
+
+                out.write(target);
+            }
+
+            // =====================
+            // NS
+            // =====================
+
+            else if (record instanceof NsRecord nsRecord) {
+
+                writeName(
+                        out,
+                        record.getName()
+                );
+
+                writeShort(out, 2);
+                writeShort(out, 1);
+
+                writeInt(
+                        out,
+                        record.getTtl()
+                );
+
+                ByteArrayOutputStream targetOut =
+                        new ByteArrayOutputStream();
+
+                writeName(
+                        targetOut,
+                        nsRecord.getTarget()
+                );
+
+                byte[] target =
+                        targetOut.toByteArray();
+
+                writeShort(
+                        out,
+                        target.length
+                );
+
+                out.write(target);
+            }
+
+            // =====================
+            // MX
+            // =====================
+
+            else if (record instanceof MxRecord mxRecord) {
+
+                writeName(
+                        out,
+                        record.getName()
+                );
+
+                writeShort(out, 15);
+                writeShort(out, 1);
+
+                writeInt(
+                        out,
+                        record.getTtl()
+                );
+
+                ByteArrayOutputStream mxData =
+                        new ByteArrayOutputStream();
+
+                writeShort(
+                        mxData,
+                        mxRecord.getPreference()
+                );
+
+                writeName(
+                        mxData,
+                        mxRecord.getExchange()
+                );
+
+                byte[] data =
+                        mxData.toByteArray();
+
+                writeShort(
+                        out,
+                        data.length
+                );
+
+                out.write(data);
+            }
+
+            // =====================
+            // TXT
+            // =====================
+
+            else if (record instanceof TxtRecord txtRecord) {
+
+                writeName(
+                        out,
+                        record.getName()
+                );
+
+                writeShort(out, 16);
+                writeShort(out, 1);
+
+                writeInt(
+                        out,
+                        record.getTtl()
+                );
+
+                byte[] text =
+                        txtRecord.getText()
+                                .getBytes(
+                                        StandardCharsets.UTF_8
+                                );
+
+                /*
+                 * TXT RDATA is one or more
+                 * length-prefixed character strings.
+                 */
+
+                ByteArrayOutputStream txtData =
+                        new ByteArrayOutputStream();
+
+                txtData.write(text.length);
+                txtData.write(text);
+
+                byte[] data =
+                        txtData.toByteArray();
+
+                writeShort(
+                        out,
+                        data.length
+                );
+
+                out.write(data);
             }
         }
 
         return out.toByteArray();
     }
 
+    // =========================
+    // DNS NAME
+    // =========================
+
     private static void writeName(
             ByteArrayOutputStream out,
             String name) {
 
+        String cleanName =
+                name.endsWith(".")
+                        ? name.substring(
+                                0,
+                                name.length() - 1
+                        )
+                        : name;
+
         String[] labels =
-                name.split("\\.");
+                cleanName.split("\\.");
 
         for (String label : labels) {
 
@@ -137,13 +347,19 @@ public class DnsEncoder {
             );
 
             byte[] bytes =
-                    label.getBytes();
+                    label.getBytes(
+                            StandardCharsets.US_ASCII
+                    );
 
             out.writeBytes(bytes);
         }
 
         out.write(0);
     }
+
+    // =========================
+    // 16-BIT INTEGER
+    // =========================
 
     private static void writeShort(
             ByteArrayOutputStream out,
@@ -157,6 +373,10 @@ public class DnsEncoder {
                 value & 0xFF
         );
     }
+
+    // =========================
+    // 32-BIT INTEGER
+    // =========================
 
     private static void writeInt(
             ByteArrayOutputStream out,
