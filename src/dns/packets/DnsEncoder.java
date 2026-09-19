@@ -7,7 +7,6 @@ import dns.records.MxRecord;
 import dns.records.NsRecord;
 import dns.records.TxtRecord;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
@@ -20,12 +19,17 @@ public class DnsEncoder {
             List<DnsRecord> answers,
             int responseCode) throws IOException {
 
-        ByteArrayOutputStream out =
-                new ByteArrayOutputStream();
+        DnsPacketWriter writer =
+                new DnsPacketWriter();
 
         DnsHeader requestHeader =
                 request.getHeader();
 
+        /*
+         * QR = 1
+         * AA = 1
+         * RCODE = responseCode
+         */
         int flags =
                 0x8000
                 | 0x0400
@@ -35,28 +39,22 @@ public class DnsEncoder {
         // HEADER
         // =========================
 
-        writeShort(
-                out,
+        writer.writeShort(
                 requestHeader.getId()
         );
 
-        writeShort(
-                out,
-                flags
-        );
+        writer.writeShort(flags);
 
-        writeShort(
-                out,
+        writer.writeShort(
                 request.getQuestions().size()
         );
 
-        writeShort(
-                out,
+        writer.writeShort(
                 answers.size()
         );
 
-        writeShort(out, 0);
-        writeShort(out, 0);
+        writer.writeShort(0); // Authority
+        writer.writeShort(0); // Additional
 
         // =========================
         // QUESTIONS
@@ -65,18 +63,15 @@ public class DnsEncoder {
         for (DnsQuestion question :
                 request.getQuestions()) {
 
-            writeName(
-                    out,
+            writer.writeName(
                     question.getName()
             );
 
-            writeShort(
-                    out,
+            writer.writeShort(
                     question.getType()
             );
 
-            writeShort(
-                    out,
+            writer.writeShort(
                     question.getDnsClass()
             );
         }
@@ -87,22 +82,20 @@ public class DnsEncoder {
 
         for (DnsRecord record : answers) {
 
-            // =====================
+            // =========================
             // A
-            // =====================
+            // =========================
 
             if (record instanceof ARecord aRecord) {
 
-                writeName(
-                        out,
+                writer.writeName(
                         record.getName()
                 );
 
-                writeShort(out, 1);
-                writeShort(out, 1);
+                writer.writeShort(1); // A
+                writer.writeShort(1); // IN
 
-                writeInt(
-                        out,
+                writer.writeInt(
                         record.getTtl()
                 );
 
@@ -111,30 +104,29 @@ public class DnsEncoder {
                                 aRecord.getAddress()
                         ).getAddress();
 
-                writeShort(
-                        out,
+                writer.writeShort(
                         address.length
                 );
 
-                out.write(address);
+                writer.writeBytes(address);
             }
 
-            // =====================
+            // =========================
             // AAAA
-            // =====================
+            // =========================
 
-            else if (record instanceof AAAARecord aaaaRecord) {
+            else if (
+                    record instanceof AAAARecord aaaaRecord
+            ) {
 
-                writeName(
-                        out,
+                writer.writeName(
                         record.getName()
                 );
 
-                writeShort(out, 28);
-                writeShort(out, 1);
+                writer.writeShort(28); // AAAA
+                writer.writeShort(1);  // IN
 
-                writeInt(
-                        out,
+                writer.writeInt(
                         record.getTtl()
                 );
 
@@ -143,149 +135,166 @@ public class DnsEncoder {
                                 aaaaRecord.getAddress()
                         ).getAddress();
 
-                writeShort(
-                        out,
+                writer.writeShort(
                         address.length
                 );
 
-                out.write(address);
+                writer.writeBytes(address);
             }
 
-            // =====================
+            // =========================
             // CNAME
-            // =====================
+            // =========================
 
-            else if (record instanceof CnameRecord cnameRecord) {
+            else if (
+                    record instanceof CnameRecord cnameRecord
+            ) {
 
-                writeName(
-                        out,
+                writer.writeName(
                         record.getName()
                 );
 
-                writeShort(out, 5);
-                writeShort(out, 1);
+                writer.writeShort(5); // CNAME
+                writer.writeShort(1); // IN
 
-                writeInt(
-                        out,
+                writer.writeInt(
                         record.getTtl()
                 );
 
-                ByteArrayOutputStream targetOut =
-                        new ByteArrayOutputStream();
+                /*
+                 * Reserve two bytes for RDLENGTH.
+                 */
+                int rdLengthPosition =
+                        writer.reserveShort();
 
-                writeName(
-                        targetOut,
+                int rdataStart =
+                        writer.position();
+
+                /*
+                 * Write the target directly into
+                 * the final packet.
+                 *
+                 * This allows compression pointers
+                 * to use absolute packet offsets.
+                 */
+                writer.writeName(
                         cnameRecord.getTarget()
                 );
 
-                byte[] target =
-                        targetOut.toByteArray();
+                int rdLength =
+                        writer.position()
+                        - rdataStart;
 
-                writeShort(
-                        out,
-                        target.length
+                writer.setShort(
+                        rdLengthPosition,
+                        rdLength
                 );
-
-                out.write(target);
             }
 
-            // =====================
+            // =========================
             // NS
-            // =====================
+            // =========================
 
-            else if (record instanceof NsRecord nsRecord) {
+            else if (
+                    record instanceof NsRecord nsRecord
+            ) {
 
-                writeName(
-                        out,
+                writer.writeName(
                         record.getName()
                 );
 
-                writeShort(out, 2);
-                writeShort(out, 1);
+                writer.writeShort(2); // NS
+                writer.writeShort(1); // IN
 
-                writeInt(
-                        out,
+                writer.writeInt(
                         record.getTtl()
                 );
 
-                ByteArrayOutputStream targetOut =
-                        new ByteArrayOutputStream();
+                int rdLengthPosition =
+                        writer.reserveShort();
 
-                writeName(
-                        targetOut,
+                int rdataStart =
+                        writer.position();
+
+                writer.writeName(
                         nsRecord.getTarget()
                 );
 
-                byte[] target =
-                        targetOut.toByteArray();
+                int rdLength =
+                        writer.position()
+                        - rdataStart;
 
-                writeShort(
-                        out,
-                        target.length
+                writer.setShort(
+                        rdLengthPosition,
+                        rdLength
                 );
-
-                out.write(target);
             }
 
-            // =====================
+            // =========================
             // MX
-            // =====================
+            // =========================
 
-            else if (record instanceof MxRecord mxRecord) {
+            else if (
+                    record instanceof MxRecord mxRecord
+            ) {
 
-                writeName(
-                        out,
+                writer.writeName(
                         record.getName()
                 );
 
-                writeShort(out, 15);
-                writeShort(out, 1);
+                writer.writeShort(15); // MX
+                writer.writeShort(1);  // IN
 
-                writeInt(
-                        out,
+                writer.writeInt(
                         record.getTtl()
                 );
 
-                ByteArrayOutputStream mxData =
-                        new ByteArrayOutputStream();
+                int rdLengthPosition =
+                        writer.reserveShort();
 
-                writeShort(
-                        mxData,
+                int rdataStart =
+                        writer.position();
+
+                /*
+                 * MX preference
+                 */
+                writer.writeShort(
                         mxRecord.getPreference()
                 );
 
-                writeName(
-                        mxData,
+                /*
+                 * MX exchange name.
+                 */
+                writer.writeName(
                         mxRecord.getExchange()
                 );
 
-                byte[] data =
-                        mxData.toByteArray();
+                int rdLength =
+                        writer.position()
+                        - rdataStart;
 
-                writeShort(
-                        out,
-                        data.length
+                writer.setShort(
+                        rdLengthPosition,
+                        rdLength
                 );
-
-                out.write(data);
             }
 
-            // =====================
+            // =========================
             // TXT
-            // =====================
+            // =========================
 
-            else if (record instanceof TxtRecord txtRecord) {
+            else if (
+                    record instanceof TxtRecord txtRecord
+            ) {
 
-                writeName(
-                        out,
+                writer.writeName(
                         record.getName()
                 );
 
-                writeShort(out, 16);
-                writeShort(out, 1);
+                writer.writeShort(16); // TXT
+                writer.writeShort(1);  // IN
 
-                writeInt(
-                        out,
+                writer.writeInt(
                         record.getTtl()
                 );
 
@@ -296,106 +305,24 @@ public class DnsEncoder {
                                 );
 
                 /*
-                 * TXT RDATA is one or more
-                 * length-prefixed character strings.
+                 * TXT RDATA consists of a
+                 * length-prefixed character string.
                  */
+                int rdLength =
+                        1 + text.length;
 
-                ByteArrayOutputStream txtData =
-                        new ByteArrayOutputStream();
-
-                txtData.write(text.length);
-                txtData.write(text);
-
-                byte[] data =
-                        txtData.toByteArray();
-
-                writeShort(
-                        out,
-                        data.length
+                writer.writeShort(
+                        rdLength
                 );
 
-                out.write(data);
+                writer.writeByte(
+                        text.length
+                );
+
+                writer.writeBytes(text);
             }
         }
 
-        return out.toByteArray();
-    }
-
-    // =========================
-    // DNS NAME
-    // =========================
-
-    private static void writeName(
-            ByteArrayOutputStream out,
-            String name) {
-
-        String cleanName =
-                name.endsWith(".")
-                        ? name.substring(
-                                0,
-                                name.length() - 1
-                        )
-                        : name;
-
-        String[] labels =
-                cleanName.split("\\.");
-
-        for (String label : labels) {
-
-            out.write(
-                    label.length()
-            );
-
-            byte[] bytes =
-                    label.getBytes(
-                            StandardCharsets.US_ASCII
-                    );
-
-            out.writeBytes(bytes);
-        }
-
-        out.write(0);
-    }
-
-    // =========================
-    // 16-BIT INTEGER
-    // =========================
-
-    private static void writeShort(
-            ByteArrayOutputStream out,
-            int value) {
-
-        out.write(
-                (value >> 8) & 0xFF
-        );
-
-        out.write(
-                value & 0xFF
-        );
-    }
-
-    // =========================
-    // 32-BIT INTEGER
-    // =========================
-
-    private static void writeInt(
-            ByteArrayOutputStream out,
-            int value) {
-
-        out.write(
-                (value >> 24) & 0xFF
-        );
-
-        out.write(
-                (value >> 16) & 0xFF
-        );
-
-        out.write(
-                (value >> 8) & 0xFF
-        );
-
-        out.write(
-                value & 0xFF
-        );
+        return writer.toByteArray();
     }
 }
