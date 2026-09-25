@@ -7,7 +7,6 @@ import dns.packets.DnsQuestion;
 import dns.packets.DnsRecord;
 import dns.records.MxRecord;
 import dns.records.NsRecord;
-import dns.records.SoaRecord;
 import dns.resolver.LocalResolver;
 import dns.resolver.Resolver;
 import dns.zone.Zone;
@@ -64,10 +63,7 @@ public class DnsServer {
         );
     }
 
-    // ==================================================
     // UDP SERVER
-    // ==================================================
-
     private static void runUdpServer(
             Resolver resolver,
             Zone zone) {
@@ -127,6 +123,7 @@ public class DnsServer {
                     List<DnsRecord> authority =
                             buildAuthorityRecords(
                                     zone,
+                                    question,
                                     responseCode
                             );
 
@@ -176,10 +173,7 @@ public class DnsServer {
         }
     }
 
-    // ==================================================
     // TCP SERVER
-    // ==================================================
-
     private static void runTcpServer(
             Resolver resolver,
             Zone zone) {
@@ -219,10 +213,7 @@ public class DnsServer {
         }
     }
 
-    // ==================================================
     // TCP CLIENT
-    // ==================================================
-
     private static void handleTcpClient(
             Socket socket,
             Resolver resolver,
@@ -238,10 +229,6 @@ public class DnsServer {
                              socket.getOutputStream()
                      )) {
 
-            /*
-             * DNS over TCP starts with a
-             * two-byte message length.
-             */
             int messageLength =
                     input.readUnsignedShort();
 
@@ -286,6 +273,7 @@ public class DnsServer {
             List<DnsRecord> authority =
                     buildAuthorityRecords(
                             zone,
+                            question,
                             responseCode
                     );
 
@@ -305,10 +293,6 @@ public class DnsServer {
                             responseCode
                     );
 
-            /*
-             * DNS over TCP requires the response
-             * length before the DNS message.
-             */
             output.writeShort(
                     response.length
             );
@@ -327,22 +311,45 @@ public class DnsServer {
         }
     }
 
-    // ==================================================
     // AUTHORITY RECORDS
-    // ==================================================
-
     private static List<DnsRecord> buildAuthorityRecords(
             Zone zone,
+            DnsQuestion question,
             int responseCode) {
 
         List<DnsRecord> authority =
                 new ArrayList<>();
 
         /*
-         * For NXDOMAIN responses, return the
-         * zone's SOA record in the Authority section.
+         * Return the zone SOA for:
+         *
+         * 1. NXDOMAIN
+         * 2. NODATA
+         *
+         * NXDOMAIN:
+         * The requested name does not exist.
+         *
+         * NODATA:
+         * The requested name exists, but there
+         * is no record of the requested type.
          */
-        if (responseCode == 3) {
+
+        boolean nameExists =
+                zone.exists(
+                        question.getName()
+                );
+
+        List<DnsRecord> answers =
+                zone.find(
+                        question.getName(),
+                        question.getType()
+                );
+
+        boolean nodata =
+                nameExists
+                && answers.isEmpty();
+
+        if (responseCode == 3 || nodata) {
 
             authority.addAll(
                     zone.find(
@@ -355,10 +362,7 @@ public class DnsServer {
         return authority;
     }
 
-    // ==================================================
     // ADDITIONAL RECORDS
-    // ==================================================
-
     private static List<DnsRecord> buildAdditionalRecords(
             Zone zone,
             List<DnsRecord> answers,
@@ -421,10 +425,7 @@ public class DnsServer {
         return additional;
     }
 
-    // ==================================================
     // RESPONSE CODE
-    // ==================================================
-
     private static int determineResponseCode(
             Zone zone,
             DnsQuestion question) {
