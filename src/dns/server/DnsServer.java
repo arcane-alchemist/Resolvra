@@ -26,6 +26,13 @@ public class DnsServer {
     private static final int PORT = 8053;
     private static final int BUFFER_SIZE = 512;
 
+    private static final int CLASS_IN = 1;
+
+    private static final int RCODE_NOERROR = 0;
+    private static final int RCODE_NXDOMAIN = 3;
+    private static final int RCODE_NOTIMP = 4;
+    private static final int RCODE_REFUSED = 5;
+
     public static void main(String[] args) {
 
         Zone zone =
@@ -109,6 +116,8 @@ public class DnsServer {
                             + question.getName()
                             + " type="
                             + question.getType()
+                            + " class="
+                            + question.getDnsClass()
                     );
 
                     int opcode =
@@ -123,11 +132,25 @@ public class DnsServer {
 
                     if (opcode != 0) {
 
-                        responseCode = 4;
+                        responseCode =
+                                RCODE_NOTIMP;
 
                         System.out.println(
                                 "Unsupported OPCODE: "
                                 + opcode
+                        );
+
+                    } else if (
+                            question.getDnsClass()
+                                    != CLASS_IN
+                    ) {
+
+                        responseCode =
+                                RCODE_REFUSED;
+
+                        System.out.println(
+                                "Unsupported DNS class: "
+                                + question.getDnsClass()
                         );
 
                     } else {
@@ -282,6 +305,8 @@ public class DnsServer {
                     + question.getName()
                     + " type="
                     + question.getType()
+                    + " class="
+                    + question.getDnsClass()
             );
 
             int opcode =
@@ -296,11 +321,25 @@ public class DnsServer {
 
             if (opcode != 0) {
 
-                responseCode = 4;
+                responseCode =
+                        RCODE_NOTIMP;
 
                 System.out.println(
                         "Unsupported OPCODE: "
                         + opcode
+                );
+
+            } else if (
+                    question.getDnsClass()
+                            != CLASS_IN
+            ) {
+
+                responseCode =
+                        RCODE_REFUSED;
+
+                System.out.println(
+                        "Unsupported DNS class: "
+                        + question.getDnsClass()
                 );
 
             } else {
@@ -385,6 +424,9 @@ public class DnsServer {
          * NODATA:
          * The requested name exists, but there
          * is no record of the requested type.
+         *
+         * Error responses such as NOTIMP and
+         * REFUSED must not be treated as NODATA.
          */
 
         boolean nameExists =
@@ -392,19 +434,13 @@ public class DnsServer {
                         question.getName()
                 );
 
-        /*
-         * NODATA only applies to a successful
-         * DNS response with no matching records.
-         *
-         * Error responses such as NOTIMP
-         * must not be treated as NODATA.
-         */
         boolean nodata =
-                responseCode == 0
+                responseCode == RCODE_NOERROR
                 && nameExists
                 && answers.isEmpty();
 
-        if (responseCode == 3 || nodata) {
+        if (responseCode == RCODE_NXDOMAIN
+                || nodata) {
 
             authority.addAll(
                     zone.find(
@@ -488,9 +524,9 @@ public class DnsServer {
         if (zone.exists(
                 question.getName())) {
 
-            return 0;
+            return RCODE_NOERROR;
         }
 
-        return 3;
+        return RCODE_NXDOMAIN;
     }
 }
