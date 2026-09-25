@@ -111,20 +111,43 @@ public class DnsServer {
                             + question.getType()
                     );
 
-                    List<DnsRecord> answers =
-                            resolver.resolve(question);
-
-                    int responseCode =
-                            determineResponseCode(
-                                    zone,
-                                    question
+                    int opcode =
+                            getOpcode(
+                                    packet.getHeader().getFlags()
                             );
+
+                    int responseCode;
+
+                    List<DnsRecord> answers =
+                            new ArrayList<>();
+
+                    if (opcode != 0) {
+
+                        responseCode = 4;
+
+                        System.out.println(
+                                "Unsupported OPCODE: "
+                                + opcode
+                        );
+
+                    } else {
+
+                        answers =
+                                resolver.resolve(question);
+
+                        responseCode =
+                                determineResponseCode(
+                                        zone,
+                                        question
+                                );
+                    }
 
                     List<DnsRecord> authority =
                             buildAuthorityRecords(
                                     zone,
                                     question,
-                                    responseCode
+                                    responseCode,
+                                    answers
                             );
 
                     List<DnsRecord> additional =
@@ -261,20 +284,43 @@ public class DnsServer {
                     + question.getType()
             );
 
-            List<DnsRecord> answers =
-                    resolver.resolve(question);
-
-            int responseCode =
-                    determineResponseCode(
-                            zone,
-                            question
+            int opcode =
+                    getOpcode(
+                            packet.getHeader().getFlags()
                     );
+
+            int responseCode;
+
+            List<DnsRecord> answers =
+                    new ArrayList<>();
+
+            if (opcode != 0) {
+
+                responseCode = 4;
+
+                System.out.println(
+                        "Unsupported OPCODE: "
+                        + opcode
+                );
+
+            } else {
+
+                answers =
+                        resolver.resolve(question);
+
+                responseCode =
+                        determineResponseCode(
+                                zone,
+                                question
+                        );
+            }
 
             List<DnsRecord> authority =
                     buildAuthorityRecords(
                             zone,
                             question,
-                            responseCode
+                            responseCode,
+                            answers
                     );
 
             List<DnsRecord> additional =
@@ -311,11 +357,18 @@ public class DnsServer {
         }
     }
 
+    // OPCODE
+    private static int getOpcode(int flags) {
+
+        return (flags >> 11) & 0x0F;
+    }
+
     // AUTHORITY RECORDS
     private static List<DnsRecord> buildAuthorityRecords(
             Zone zone,
             DnsQuestion question,
-            int responseCode) {
+            int responseCode,
+            List<DnsRecord> answers) {
 
         List<DnsRecord> authority =
                 new ArrayList<>();
@@ -339,14 +392,16 @@ public class DnsServer {
                         question.getName()
                 );
 
-        List<DnsRecord> answers =
-                zone.find(
-                        question.getName(),
-                        question.getType()
-                );
-
+        /*
+         * NODATA only applies to a successful
+         * DNS response with no matching records.
+         *
+         * Error responses such as NOTIMP
+         * must not be treated as NODATA.
+         */
         boolean nodata =
-                nameExists
+                responseCode == 0
+                && nameExists
                 && answers.isEmpty();
 
         if (responseCode == 3 || nodata) {
