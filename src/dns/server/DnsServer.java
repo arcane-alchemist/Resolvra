@@ -5,6 +5,8 @@ import dns.packets.DnsPacket;
 import dns.packets.DnsParser;
 import dns.packets.DnsQuestion;
 import dns.packets.DnsRecord;
+import dns.records.MxRecord;
+import dns.records.NsRecord;
 import dns.resolver.LocalResolver;
 import dns.resolver.Resolver;
 import dns.zone.Zone;
@@ -16,6 +18,7 @@ import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.ArrayList;
 import java.util.List;
 
 public class DnsServer {
@@ -114,6 +117,19 @@ public class DnsServer {
                     List<DnsRecord> answers =
                             resolver.resolve(question);
 
+                    List<DnsRecord> authority =
+                            buildAuthorityRecords(
+                                    zone,
+                                    question
+                            );
+
+                    List<DnsRecord> additional =
+                            buildAdditionalRecords(
+                                    zone,
+                                    answers,
+                                    authority
+                            );
+
                     int responseCode =
                             determineResponseCode(
                                     zone,
@@ -124,6 +140,8 @@ public class DnsServer {
                             DnsEncoder.buildResponse(
                                     packet,
                                     answers,
+                                    authority,
+                                    additional,
                                     responseCode
                             );
 
@@ -258,6 +276,19 @@ public class DnsServer {
             List<DnsRecord> answers =
                     resolver.resolve(question);
 
+            List<DnsRecord> authority =
+                    buildAuthorityRecords(
+                            zone,
+                            question
+                    );
+
+            List<DnsRecord> additional =
+                    buildAdditionalRecords(
+                            zone,
+                            answers,
+                            authority
+                    );
+
             int responseCode =
                     determineResponseCode(
                             zone,
@@ -268,6 +299,8 @@ public class DnsServer {
                     DnsEncoder.buildResponse(
                             packet,
                             answers,
+                            authority,
+                            additional,
                             responseCode
                     );
 
@@ -291,6 +324,89 @@ public class DnsServer {
 
             e.printStackTrace();
         }
+    }
+
+    // ==================================================
+    // AUTHORITY RECORDS
+    // ==================================================
+
+    private static List<DnsRecord> buildAuthorityRecords(
+            Zone zone,
+            DnsQuestion question) {
+
+        /*
+         * Authority records are currently empty.
+         *
+         * We will use this section later for
+         * proper SOA and negative DNS responses.
+         */
+        return new ArrayList<>();
+    }
+
+    // ==================================================
+    // ADDITIONAL RECORDS
+    // ==================================================
+
+    private static List<DnsRecord> buildAdditionalRecords(
+            Zone zone,
+            List<DnsRecord> answers,
+            List<DnsRecord> authority) {
+
+        List<DnsRecord> additional =
+                new ArrayList<>();
+
+        /*
+         * Add A records for nameservers referenced
+         * by NS records in the answer section.
+         */
+        for (DnsRecord record : answers) {
+
+            if (record instanceof NsRecord nsRecord) {
+
+                additional.addAll(
+                        zone.find(
+                                nsRecord.getTarget(),
+                                1
+                        )
+                );
+            }
+        }
+
+        /*
+         * Add A records for nameservers referenced
+         * by NS records in the authority section.
+         */
+        for (DnsRecord record : authority) {
+
+            if (record instanceof NsRecord nsRecord) {
+
+                additional.addAll(
+                        zone.find(
+                                nsRecord.getTarget(),
+                                1
+                        )
+                );
+            }
+        }
+
+        /*
+         * Add A records for mail servers referenced
+         * by MX records.
+         */
+        for (DnsRecord record : answers) {
+
+            if (record instanceof MxRecord mxRecord) {
+
+                additional.addAll(
+                        zone.find(
+                                mxRecord.getExchange(),
+                                1
+                        )
+                );
+            }
+        }
+
+        return additional;
     }
 
     // ==================================================

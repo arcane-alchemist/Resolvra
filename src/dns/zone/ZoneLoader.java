@@ -13,7 +13,10 @@ public class ZoneLoader {
 
         Zone zone = new Zone();
 
-        // A
+        // =========================
+        // A RECORDS
+        // =========================
+
         zone.addRecord(
                 new ARecord(
                         "example.local",
@@ -30,7 +33,26 @@ public class ZoneLoader {
                 )
         );
 
-        // AAAA
+        zone.addRecord(
+                new ARecord(
+                        "ns1.example.local",
+                        "192.168.1.11",
+                        300
+                )
+        );
+
+        zone.addRecord(
+                new ARecord(
+                        "mail.example.local",
+                        "192.168.1.12",
+                        300
+                )
+        );
+
+        // =========================
+        // AAAA RECORD
+        // =========================
+
         zone.addRecord(
                 new AAAARecord(
                         "ipv6.example.local",
@@ -39,7 +61,10 @@ public class ZoneLoader {
                 )
         );
 
-        // CNAME
+        // =========================
+        // CNAME RECORD
+        // =========================
+
         zone.addRecord(
                 new CnameRecord(
                         "alias.example.local",
@@ -48,7 +73,10 @@ public class ZoneLoader {
                 )
         );
 
-        // NS
+        // =========================
+        // NS RECORD
+        // =========================
+
         zone.addRecord(
                 new NsRecord(
                         "example.local",
@@ -57,7 +85,10 @@ public class ZoneLoader {
                 )
         );
 
-        // MX
+        // =========================
+        // MX RECORD
+        // =========================
+
         zone.addRecord(
                 new MxRecord(
                         "example.local",
@@ -67,7 +98,10 @@ public class ZoneLoader {
                 )
         );
 
-        // TXT
+        // =========================
+        // TXT RECORD
+        // =========================
+
         zone.addRecord(
                 new TxtRecord(
                         "example.local",

@@ -66,6 +66,8 @@ public class DnsParser {
         return new DnsPacket(
                 header,
                 questions,
+                new ArrayList<>(),
+                new ArrayList<>(),
                 new ArrayList<>()
         );
     }
@@ -159,20 +161,8 @@ public class DnsParser {
 
         int currentOffset = offset;
 
-        /*
-         * This tells us where the next DNS
-         * field begins in the original packet.
-         *
-         * A compression pointer changes where
-         * we read the name from, but it does NOT
-         * change where the following field starts.
-         */
         int nextOffset = -1;
 
-        /*
-         * Prevent malformed packets from creating
-         * an infinite compression-pointer loop.
-         */
         boolean[] visited =
                 new boolean[length];
 
@@ -198,10 +188,6 @@ public class DnsParser {
             int firstByte =
                     data[currentOffset] & 0xFF;
 
-            /*
-             * 11xxxxxx means this is a DNS
-             * compression pointer.
-             */
             if ((firstByte & 0xC0) == 0xC0) {
 
                 if (currentOffset + 1 >= length) {
@@ -227,13 +213,6 @@ public class DnsParser {
                     );
                 }
 
-                /*
-                 * The two pointer bytes belong to
-                 * the current field, so if this is
-                 * the first pointer encountered,
-                 * the next DNS field starts after
-                 * these two bytes.
-                 */
                 if (nextOffset == -1) {
 
                     nextOffset =
@@ -245,13 +224,6 @@ public class DnsParser {
                 continue;
             }
 
-            /*
-             * 01xxxxxx, 10xxxxxx and 11xxxxxx
-             * have special meanings in DNS.
-             *
-             * We only allow normal labels (00xxxxxx)
-             * or compression pointers (11xxxxxx).
-             */
             if ((firstByte & 0xC0) != 0) {
 
                 throw new IllegalArgumentException(
@@ -264,10 +236,6 @@ public class DnsParser {
 
             currentOffset++;
 
-            /*
-             * Zero-length label means the end
-             * of the domain name.
-             */
             if (labelLength == 0) {
 
                 if (nextOffset == -1) {
