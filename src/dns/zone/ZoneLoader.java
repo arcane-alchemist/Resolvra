@@ -5,6 +5,7 @@ import dns.records.ARecord;
 import dns.records.CnameRecord;
 import dns.records.MxRecord;
 import dns.records.NsRecord;
+import dns.records.SoaRecord;
 import dns.records.TxtRecord;
 
 public class ZoneLoader {
@@ -12,6 +13,24 @@ public class ZoneLoader {
     public static Zone loadDefaultZone() {
 
         Zone zone = new Zone();
+
+        // =========================
+        // SOA RECORD
+        // =========================
+
+        zone.addRecord(
+                new SoaRecord(
+                        "example.local",
+                        "ns1.example.local",
+                        "admin.example.local",
+                        2026092501L,
+                        3600L,
+                        600L,
+                        86400L,
+                        300L,
+                        300
+                )
+        );
 
         // =========================
         // A RECORDS

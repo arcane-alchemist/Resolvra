@@ -5,6 +5,7 @@ import dns.records.ARecord;
 import dns.records.CnameRecord;
 import dns.records.MxRecord;
 import dns.records.NsRecord;
+import dns.records.SoaRecord;
 import dns.records.TxtRecord;
 
 import java.io.IOException;
@@ -354,6 +355,69 @@ public class DnsEncoder {
             );
 
             writer.writeBytes(text);
+        }
+
+        // =========================
+        // SOA
+        // =========================
+
+        else if (
+                record instanceof SoaRecord soaRecord
+        ) {
+
+            writer.writeName(
+                    record.getName()
+            );
+
+            writer.writeShort(6); // SOA
+            writer.writeShort(1); // IN
+
+            writer.writeInt(
+                    record.getTtl()
+            );
+
+            int rdLengthPosition =
+                    writer.reserveShort();
+
+            int rdataStart =
+                    writer.position();
+
+            writer.writeName(
+                    soaRecord.getPrimaryNameServer()
+            );
+
+            writer.writeName(
+                    soaRecord.getResponsibleMailbox()
+            );
+
+            writer.writeInt(
+                    (int) soaRecord.getSerial()
+            );
+
+            writer.writeInt(
+                    (int) soaRecord.getRefresh()
+            );
+
+            writer.writeInt(
+                    (int) soaRecord.getRetry()
+            );
+
+            writer.writeInt(
+                    (int) soaRecord.getExpire()
+            );
+
+            writer.writeInt(
+                    (int) soaRecord.getMinimum()
+            );
+
+            int rdLength =
+                    writer.position()
+                    - rdataStart;
+
+            writer.setShort(
+                    rdLengthPosition,
+                    rdLength
+            );
         }
 
         else {

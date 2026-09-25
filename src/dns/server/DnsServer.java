@@ -7,6 +7,7 @@ import dns.packets.DnsQuestion;
 import dns.packets.DnsRecord;
 import dns.records.MxRecord;
 import dns.records.NsRecord;
+import dns.records.SoaRecord;
 import dns.resolver.LocalResolver;
 import dns.resolver.Resolver;
 import dns.zone.Zone;
@@ -117,10 +118,16 @@ public class DnsServer {
                     List<DnsRecord> answers =
                             resolver.resolve(question);
 
+                    int responseCode =
+                            determineResponseCode(
+                                    zone,
+                                    question
+                            );
+
                     List<DnsRecord> authority =
                             buildAuthorityRecords(
                                     zone,
-                                    question
+                                    responseCode
                             );
 
                     List<DnsRecord> additional =
@@ -128,12 +135,6 @@ public class DnsServer {
                                     zone,
                                     answers,
                                     authority
-                            );
-
-                    int responseCode =
-                            determineResponseCode(
-                                    zone,
-                                    question
                             );
 
                     byte[] response =
@@ -276,10 +277,16 @@ public class DnsServer {
             List<DnsRecord> answers =
                     resolver.resolve(question);
 
+            int responseCode =
+                    determineResponseCode(
+                            zone,
+                            question
+                    );
+
             List<DnsRecord> authority =
                     buildAuthorityRecords(
                             zone,
-                            question
+                            responseCode
                     );
 
             List<DnsRecord> additional =
@@ -287,12 +294,6 @@ public class DnsServer {
                             zone,
                             answers,
                             authority
-                    );
-
-            int responseCode =
-                    determineResponseCode(
-                            zone,
-                            question
                     );
 
             byte[] response =
@@ -332,15 +333,26 @@ public class DnsServer {
 
     private static List<DnsRecord> buildAuthorityRecords(
             Zone zone,
-            DnsQuestion question) {
+            int responseCode) {
+
+        List<DnsRecord> authority =
+                new ArrayList<>();
 
         /*
-         * Authority records are currently empty.
-         *
-         * We will use this section later for
-         * proper SOA and negative DNS responses.
+         * For NXDOMAIN responses, return the
+         * zone's SOA record in the Authority section.
          */
-        return new ArrayList<>();
+        if (responseCode == 3) {
+
+            authority.addAll(
+                    zone.find(
+                            "example.local",
+                            6
+                    )
+            );
+        }
+
+        return authority;
     }
 
     // ==================================================
